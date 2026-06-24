@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PhishGuard — URL Threat Scanner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0E12;
+    --panel:#11161D;
+    --panel-raised:#151B23;
+    --line:#1E2630;
+    --line-soft:#171E27;
+    --text:#DCE3E8;
+    --muted:#6B7785;
+    --muted-2:#4A5563;
+    --safe:#2FD98A;
+    --safe-dim:#173829;
+    --warn:#F0B429;
+    --warn-dim:#3A2E12;
+    --danger:#FF4757;
+    --danger-dim:#3A1820;
+    --info:#4FD1E8;
+    --mono:'IBM Plex Mono', monospace;
+    --sans:'Inter', sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(79,209,232,0.05), transparent 40%),
+      radial-gradient(circle at 85% 100%, rgba(47,217,138,0.04), transparent 40%);
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:48px 24px 80px;}
+
+  /* HEADER */
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:40px;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{
+    width:30px;height:30px;border-radius:7px;
+    background:linear-gradient(145deg, var(--safe), var(--info));
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-weight:700;color:#06120c;font-size:14px;
+    flex-shrink:0;
+  }
+  .brand-name{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:0.02em;}
+  .brand-name span{color:var(--muted);font-weight:400;}
+  .status-pill{
+    font-family:var(--mono);font-size:11px;color:var(--safe);
+    border:1px solid var(--line);padding:5px 10px;border-radius:20px;
+    display:flex;align-items:center;gap:6px;background:var(--panel);
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--safe);box-shadow:0 0 6px var(--safe);
+    animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.35}}
+
+  /* HERO */
+  .hero{margin-bottom:36px;}
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;color:var(--info);letter-spacing:0.12em;
+    text-transform:uppercase;margin-bottom:14px;display:block;
+  }
+  h1{
+    font-family:var(--mono);font-size:clamp(26px,4vw,38px);font-weight:600;
+    line-height:1.25;letter-spacing:-0.01em;margin-bottom:12px;
+  }
+  h1 em{font-style:normal;color:var(--info);}
+  .sub{color:var(--muted);font-size:15px;line-height:1.6;max-width:560px;margin-bottom:30px;}
+
+  /* SCAN INPUT */
+  .scanbar{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:6px;display:flex;gap:8px;align-items:stretch;
+    box-shadow:0 0 0 1px rgba(255,255,255,0.01) inset;
+  }
+  .scanbar:focus-within{border-color:#2A3744;}
+  .prompt-icon{
+    font-family:var(--mono);color:var(--safe);font-size:14px;
+    display:flex;align-items:center;padding-left:12px;user-select:none;
+  }
+  #urlInput{
+    flex:1;background:transparent;border:none;outline:none;
+    color:var(--text);font-family:var(--mono);font-size:14.5px;padding:14px 6px;
+    min-width:0;
+  }
+  #urlInput::placeholder{color:var(--muted-2);}
+  #scanBtn{
+    background:var(--text);color:#0A0E12;border:none;border-radius:7px;
+    font-family:var(--sans);font-weight:600;font-size:14px;padding:0 22px;
+    cursor:pointer;transition:transform 0.12s ease, background 0.15s ease;
+    white-space:nowrap;
+  }
+  #scanBtn:hover{background:#fff;}
+  #scanBtn:active{transform:scale(0.97);}
+  #scanBtn:disabled{opacity:0.5;cursor:default;}
+  .hint{font-family:var(--mono);font-size:11.5px;color:var(--muted-2);margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;}
+  .hint button{
+    background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:11.5px;
+    cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);padding:0;
+  }
+  .hint button:hover{color:var(--info);}
+
+  /* URL BREAKDOWN */
+  .breakdown{
+    display:none;margin-top:20px;font-family:var(--mono);font-size:12.5px;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;flex-wrap:wrap;gap:6px 0;color:var(--muted);
+  }
+  .breakdown.show{display:flex;}
+  .bd-seg{padding:3px 8px;border-radius:5px;margin-right:2px;}
+  .bd-protocol{color:var(--info);}
+  .bd-sub{color:var(--muted);}
+  .bd-domain{color:var(--text);font-weight:600;background:var(--panel-raised);}
+  .bd-tld{color:var(--warn);}
+  .bd-path{color:var(--muted-2);}
+
+  /* SCAN LOG */
+  #scanSection{display:none;margin-top:36px;}
+  #scanSection.show{display:block;}
+  .panel-title{
+    font-family:var(--mono);font-size:12px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:0.1em;margin-bottom:14px;
+  }
+  .checklist{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    overflow:hidden;
+  }
+  .check-row{
+    display:flex;align-items:center;gap:12px;padding:13px 16px;
+    border-bottom:1px solid var(--line-soft);opacity:0;transform:translateX(-6px);
+    transition:opacity 0.35s ease, transform 0.35s ease;
+  }
+  .check-row:last-child{border-bottom:none;}
+  .check-row.in{opacity:1;transform:translateX(0);}
+  .check-icon{
+    width:20px;height:20px;border-radius:50%;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:11px;
+    border:1.5px solid var(--line);color:var(--muted-2);font-family:var(--mono);
+    transition:all 0.25s ease;
+  }
+  .check-icon.pending{border-color:var(--line);}
+  .check-icon.pass{background:var(--safe-dim);border-color:var(--safe);color:var(--safe);}
+  .check-icon.flag{background:var(--danger-dim);border-color:var(--danger);color:var(--danger);}
+  .check-icon.warn{background:var(--warn-dim);border-color:var(--warn);color:var(--warn);}
+  .check-text{flex:1;font-size:13.5px;}
+  .check-name{font-weight:500;}
+  .check-detail{color:var(--muted);font-size:12px;margin-top:2px;}
+  .check-weight{
+    font-family:var(--mono);font-size:11px;color:var(--muted-2);flex-shrink:0;
+  }
+
+  /* VERDICT */
+  #verdict{display:none;margin-top:28px;}
+  #verdict.show{display:block;animation:fadein 0.4s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+  .verdict-card{
+    border-radius:14px;padding:28px;display:flex;align-items:center;gap:28px;
+    border:1px solid var(--line);
+  }
+  .verdict-card.safe{background:linear-gradient(135deg, rgba(47,217,138,0.07), transparent);border-color:rgba(47,217,138,0.3);}
+  .verdict-card.warn{background:linear-gradient(135deg, rgba(240,180,41,0.07), transparent);border-color:rgba(240,180,41,0.3);}
+  .verdict-card.danger{background:linear-gradient(135deg, rgba(255,71,87,0.08), transparent);border-color:rgba(255,71,87,0.35);}
+
+  .gauge{position:relative;width:104px;height:104px;flex-shrink:0;}
+  .gauge svg{transform:rotate(-90deg);}
+  .gauge-track{fill:none;stroke:var(--line);stroke-width:8;}
+  .gauge-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1);}
+  .gauge-label{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  }
+  .gauge-pct{font-family:var(--mono);font-weight:700;font-size:22px;}
+  .gauge-pct-sub{font-family:var(--mono);font-size:9.5px;color:var(--muted);letter-spacing:0.05em;}
+
+  .verdict-info{flex:1;}
+  .verdict-label{font-family:var(--mono);font-weight:700;font-size:20px;letter-spacing:0.01em;margin-bottom:6px;display:flex;align-items:center;gap:10px;}
+  .verdict-tag{font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:20px;letter-spacing:0.04em;}
+  .verdict-card.safe .verdict-tag{background:var(--safe-dim);color:var(--safe);}
+  .verdict-card.warn .verdict-tag{background:var(--warn-dim);color:var(--warn);}
+  .verdict-card.danger .verdict-tag{background:var(--danger-dim);color:var(--danger);}
+  .verdict-desc{color:var(--muted);font-size:13.5px;line-height:1.55;}
+
+  /* REASONS */
+  .reasons{margin-top:18px;}
+  .reasons-title{font-family:var(--mono);font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;}
+  .reason-chip{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;font-family:var(--mono);
+    background:var(--panel-raised);border:1px solid var(--line);border-radius:7px;
+    padding:6px 10px;margin:0 6px 6px 0;color:var(--muted);
+  }
+  .reason-chip.flag{color:var(--danger);border-color:rgba(255,71,87,0.25);}
+  .reason-chip.warn{color:var(--warn);border-color:rgba(240,180,41,0.25);}
+
+  /* HISTORY */
+  #history{margin-top:40px;display:none;}
+  #history.show{display:block;}
+  .hist-row{
+    display:flex;align-items:center;gap:10px;padding:10px 14px;font-family:var(--mono);font-size:12px;
+    border-bottom:1px solid var(--line-soft);color:var(--muted);
+  }
+  .hist-row:last-child{border-bottom:none;}
+  .hist-row .url{flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .hist-badge{font-size:10px;padding:2px 7px;border-radius:5px;font-weight:600;flex-shrink:0;}
+  .hist-badge.safe{background:var(--safe-dim);color:var(--safe);}
+  .hist-badge.warn{background:var(--warn-dim);color:var(--warn);}
+  .hist-badge.danger{background:var(--danger-dim);color:var(--danger);}
+
+  footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted-2);font-family:var(--mono);line-height:1.7;}
+
+  @media (max-width:560px){
+    .verdict-card{flex-direction:column;text-align:center;}
+    .scanbar{flex-wrap:wrap;}
+    #scanBtn{flex:1;margin:6px;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important;transition:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">PG</div>
+      <div class="brand-name">PhishGuard <span>/ url scanner</span></div>
+    </div>
+    <div class="status-pill"><span class="dot"></span> engine ready</div>
+  </div>
+
+  <div class="hero">
+    <span class="eyebrow">Heuristic URL Analysis</span>
+    <h1>Paste a link. We'll check<br>if it's <em>built to deceive</em>.</h1>
+    <p class="sub">PhishGuard runs every URL through a weighted rule engine — inspecting the domain, certificate signals, structure, and known phishing vocabulary — the same signal types real-world classifiers train on.</p>
+
+    <div class="scanbar">
+      <span class="prompt-icon">→</span>
+      <input id="urlInput" type="text" placeholder="e.g. http://paypal-secure-login.verify-account.tk/signin" autocomplete="off" spellcheck="false">
+      <button id="scanBtn" onclick="runScan()">Scan URL</button>
+    </div>
+    <div class="hint">
+      Try: <button onclick="fillExample(0)">a safe example</button>
+      <button onclick="fillExample(1)">a suspicious example</button>
+      <button onclick="fillExample(2)">a high-risk example</button>
+    </div>
+
+    <div class="breakdown" id="breakdown"></div>
+  </div>
+
+  <div id="scanSection">
+    <div class="panel-title">Analysis log</div>
+    <div class="checklist" id="checklist"></div>
+  </div>
+
+  <div id="verdict"></div>
+
+  <div id="history">
+    <div class="panel-title">Session history</div>
+    <div class="checklist" id="historyList"></div>
+  </div>
+
+  <footer>
+    PhishGuard uses local, deterministic heuristics (no external lookups) — domain age, blacklist, and live SSL-chain validation would extend this in production.<br>
+    This tool is educational and does not replace a dedicated security product or browser-level phishing protection.
+  </footer>
+</div>
+
+<script>
+const EXAMPLES = [
+  "https://www.wikipedia.org/wiki/Phishing",
+  "http://secure-paypal.account-verify.info/login.php",
+  "http://192.168.45.12/@accounts.google.com/signin/verify-identity-confirm-now.tk"
+];
+function fillExample(i){ document.getElementById('urlInput').value = EXAMPLES[i]; runScan(); }
+
+const SUSPICIOUS_TLDS = ['tk','ml','ga','cf','gq','xyz','top','club','work','click','loan','win','rest','support','live','stream'];
+const SHORTENERS = ['bit.ly','tinyurl.com','goo.gl','t.co','ow.ly','is.gd','buff.ly','cutt.ly','rebrand.ly'];
+const PHISH_KEYWORDS = ['login','signin','verify','account','update','secure','confirm','password','wallet','billing','suspend','unlock','reactivate','security','authenticate','validate'];
+const BRANDS = ['paypal','google','apple','microsoft','amazon','netflix','facebook','instagram','bankofamerica','chase','wellsfargo','irs','dhl','fedex','outlook','office365','coinbase','binance'];
+
+function parseUrl(raw){
+  let str = raw.trim();
+  if(!/^https?:\/\//i.test(str)) str = 'http://' + str;
+  try{ return new URL(str); }catch(e){ return null; }
+}
+
+function shannonEntropy(str){
+  const len = str.length;
+  if(len === 0) return 0;
+  const freq = {};
+  for(const ch of str) freq[ch] = (freq[ch]||0)+1;
+  return -Object.values(freq).reduce((sum,c)=>{
+    const p = c/len; return sum + p*Math.log2(p);
+  },0);
+}
+
+function analyze(urlObj, originalInput){
+  const host = urlObj.hostname.toLowerCase();
+  const protocol = urlObj.protocol.replace(':','');
+  const parts = host.split('.');
+  const tld = parts[parts.length-1];
+  const domain = parts.length>=2 ? parts[parts.length-2] : host;
+  const subdomains = parts.slice(0, Math.max(parts.length-2,0));
+  const fullUrl = urlObj.href;
+  const path = urlObj.pathname + urlObj.search;
+
+  const checks = [];
+  let score = 0;
+
+  // 1. Protocol / SSL
+  if(protocol === 'https'){
+    checks.push({name:'Encrypted connection (HTTPS)', detail:'Traffic to this domain is encrypted in transit.', status:'pass', weight:0});
+  } else {
+    checks.push({name:'Encrypted connection (HTTPS)', detail:'Site uses plain HTTP — no certificate, no encryption.', status:'flag', weight:18});
+    score += 18;
+  }
+
+  // 2. IP address as hostname
+  const isIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(host);
+  if(isIP){
+    checks.push({name:'Hostname is a raw IP address', detail:'Legitimate sites almost never expose a bare IP instead of a domain.', status:'flag', weight:22});
+    score += 22;
+  } else {
+    checks.push({name:'Hostname is a raw IP address', detail:'Domain name used as expected.', status:'pass', weight:0});
+  }
+
+  // 3. "@" symbol trick
+  if(originalInput.includes('@')){
+    checks.push({name:'"@" redirect trick', detail:'Everything before "@" is ignored by browsers — often used to disguise the real destination.', status:'flag', weight:20});
+    score += 20;
+  } else {
+    checks.push({name:'"@" redirect trick', detail:'No "@" obfuscation found in the URL.', status:'pass', weight:0});
+  }
+
+  // 4. Excessive subdomains
+  if(subdomains.length >= 3){
+    checks.push({name:'Excessive subdomain depth', detail:`${subdomains.length} subdomain segments found — a common way to bury the real domain.`, status:'flag', weight:14});
+    score += 14;
+  } else if(subdomains.length === 2){
+    checks.push({name:'Subdomain depth', detail:'Moderate subdomain nesting detected.', status:'warn', weight:6});
+    score += 6;
+  } else {
+    checks.push({name:'Subdomain depth', detail:'Normal subdomain structure.', status:'pass', weight:0});
+  }
+
+  // 5. Hyphens in domain
+  const hyphenCount = (domain.match(/-/g)||[]).length;
+  if(hyphenCount >= 2){
+    checks.push({name:'Hyphenated domain name', detail:`Domain contains ${hyphenCount} hyphens — frequently used to mimic real brand names.`, status:'flag', weight:12});
+    score += 12;
+  } else if(hyphenCount === 1){
+    checks.push({name:'Hyphenated domain name', detail:'One hyphen present — worth a second look.', status:'warn', weight:5});
+    score += 5;
+  } else {
+    checks.push({name:'Hyphenated domain name', detail:'No unusual hyphenation.', status:'pass', weight:0});
+  }
+
+  // 6. URL length
+  if(fullUrl.length > 90){
+    checks.push({name:'Unusually long URL', detail:`${fullUrl.length} characters — long URLs can hide redirect chains and obfuscation.`, status:'warn', weight:8});
+    score += 8;
+  } else {
+    checks.push({name:'URL length', detail:'Length is within normal range.', status:'pass', weight:0});
+  }
+
+  // 7. Suspicious keywords
+  const lowerFull = fullUrl.toLowerCase();
+  const foundKeywords = PHISH_KEYWORDS.filter(k => lowerFull.includes(k));
+  if(foundKeywords.length >= 2){
+    checks.push({name:'Credential-harvesting vocabulary', detail:`Multiple action words found: ${foundKeywords.slice(0,4).join(', ')}.`, status:'flag', weight:16});
+    score += 16;
+  } else if(foundKeywords.length === 1){
+    checks.push({name:'Credential-harvesting vocabulary', detail:`Found term: "${foundKeywords[0]}" — common in phishing pages, but also used legitimately.`, status:'warn', weight:6});
+    score += 6;
+  } else {
+    checks.push({name:'Credential-harvesting vocabulary', detail:'No high-risk action words detected.', status:'pass', weight:0});
+  }
+
+  // 8. Suspicious TLD
+  if(SUSPICIOUS_TLDS.includes(tld)){
+    checks.push({name:'High-risk top-level domain', detail:`".${tld}" is a free or heavily-abused TLD favored by throwaway phishing sites.`, status:'flag', weight:15});
+    score += 15;
+  } else {
+    checks.push({name:'Top-level domain reputation', detail:`".${tld}" has no elevated risk association.`, status:'pass', weight:0});
+  }
+
+  // 9. URL shorteners
+  if(SHORTENERS.includes(host)){
+    checks.push({name:'URL shortening service', detail:'Shortened links hide their true destination until clicked.', status:'warn', weight:10});
+    score += 10;
+  } else {
+    checks.push({name:'URL shortening service', detail:'Not a known link shortener.', status:'pass', weight:0});
+  }
+
+  // 10. Explicit port
+  if(urlObj.port && urlObj.port !== '80' && urlObj.port !== '443'){
+    checks.push({name:'Non-standard port', detail:`Connects on port ${urlObj.port} instead of the standard 80/443.`, status:'warn', weight:8});
+    score += 8;
+  } else {
+    checks.push({name:'Port configuration', detail:'Standard web port in use.', status:'pass', weight:0});
+  }
+
+  // 11. Brand impersonation
+  const mentionedBrand = BRANDS.find(b => host.replace(/-/g,'').includes(b) && domain.replace(/-/g,'') !== b);
+  if(mentionedBrand){
+    checks.push({name:'Possible brand impersonation', detail:`"${mentionedBrand}" appears in the domain, but the domain itself isn't ${mentionedBrand}.com — a classic typosquat pattern.`, status:'flag', weight:20});
+    score += 20;
+  } else {
+    checks.push({name:'Brand impersonation check', detail:'No known brand name spotted outside its real domain.', status:'pass', weight:0});
+  }
+
+  // 12. Punycode / IDN homograph
+  if(host.includes('xn--')){
+    checks.push({name:'Punycode / homograph domain', detail:'Encoded international characters can visually impersonate Latin domains.', status:'flag', weight:18});
+    score += 18;
+  } else {
+    checks.push({name:'Punycode / homograph domain', detail:'No encoded homograph characters found.', status:'pass', weight:0});
+  }
+
+  // 13. Domain entropy (randomness)
+  const entropy = shannonEntropy(domain);
+  if(entropy > 3.6 && domain.length > 10){
+    checks.push({name:'High domain randomness', detail:'Domain name resembles algorithmically generated text rather than a brand or word.', status:'warn', weight:9});
+    score += 9;
+  } else {
+    checks.push({name:'Domain randomness', detail:'Domain reads as a normal name, not generated noise.', status:'pass', weight:0});
+  }
+
+  score = Math.min(100, score);
+
+  let verdict, verdictClass;
+  if(score < 30){ verdict='SAFE'; verdictClass='safe'; }
+  else if(score < 60){ verdict='SUSPICIOUS'; verdictClass='warn'; }
+  else { verdict='PHISHING'; verdictClass='danger'; }
+
+  return { checks, score, verdict, verdictClass, host, protocol, domain, tld, subdomains, path };
+}
+
+function renderBreakdown(a){
+  const el = document.getElementById('breakdown');
+  el.innerHTML = `
+    <span class="bd-seg bd-protocol">${a.protocol}://</span>${a.subdomains.length? `<span class="bd-seg bd-sub">${a.subdomains.join('.')}.</span>`:''}<span class="bd-seg bd-domain">${a.domain}</span><span class="bd-seg bd-tld">.${a.tld}</span><span class="bd-seg bd-path">${a.path || '/'}</span>
+  `;
+  el.classList.add('show');
+}
+
+function statusIcon(status){
+  if(status==='pass') return '✓';
+  if(status==='flag') return '✕';
+  return '!';
+}
+
+let scanToken = 0;
+
+function runScan(){
+  const input = document.getElementById('urlInput').value;
+  if(!input.trim()) return;
+  const urlObj = parseUrl(input);
+  const checklistEl = document.getElementById('checklist');
+  const scanSection = document.getElementById('scanSection');
+  const verdictEl = document.getElementById('verdict');
+  const btn = document.getElementById('scanBtn');
+
+  verdictEl.classList.remove('show');
+  verdictEl.innerHTML = '';
+  checklistEl.innerHTML = '';
+  scanSection.classList.add('show');
+
+  if(!urlObj){
+    checklistEl.innerHTML = `<div class="check-row in"><div class="check-icon flag">✕</div><div class="check-text"><div class="check-name">Could not parse URL</div><div class="check-detail">Check the format and try again.</div></div></div>`;
+    return;
+  }
+
+  document.getElementById('breakdown').classList.remove('show');
+  const a = analyze(urlObj, input.trim());
+  const myToken = ++scanToken;
+  btn.disabled = true;
+  btn.textContent = 'Scanning…';
+
+  a.checks.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'check-row';
+    row.innerHTML = `
+      <div class="check-icon pending">·</div>
+      <div class="check-text">
+        <div class="check-name">${c.name}</div>
+        <div class="check-detail">${c.detail}</div>
+      </div>
+      <div class="check-weight">${c.weight>0 ? '+'+c.weight : '—'}</div>
+    `;
+    checklistEl.appendChild(row);
+  });
+
+  const rows = checklistEl.querySelectorAll('.check-row');
+  rows.forEach((row, i) => {
+    setTimeout(()=>{
+      if(myToken !== scanToken) return;
+      row.classList.add('in');
+      const icon = row.querySelector('.check-icon');
+      const c = a.checks[i];
+      icon.classList.remove('pending');
+      icon.classList.add(c.status);
+      icon.textContent = statusIcon(c.status);
+    }, i*130);
+  });
+
+  setTimeout(()=>{
+    if(myToken !== scanToken) return;
+    renderBreakdown(a);
+    renderVerdict(a);
+    addHistory(input.trim(), a);
+    btn.disabled = false;
+    btn.textContent = 'Scan URL';
+  }, a.checks.length*130 + 250);
+}
+
+function renderVerdict(a){
+  const el = document.getElementById('verdict');
+  const circumference = 2 * Math.PI * 42;
+  const offset = circumference * (1 - a.score/100);
+  const color = a.verdictClass==='safe' ? 'var(--safe)' : a.verdictClass==='warn' ? 'var(--warn)' : 'var(--danger)';
+
+  const descriptions = {
+    safe: "No strong phishing indicators were found. Still, always verify the sender and check the address bar before entering credentials.",
+    warn: "Some signals here overlap with known phishing patterns. Proceed carefully — avoid entering passwords or payment details unless you're certain of the source.",
+    danger: "This URL matches multiple patterns seen in real phishing campaigns. Do not enter credentials, payment info, or personal data on this site."
+  };
+  const tagText = {safe:'LOW RISK', warn:'MODERATE RISK', danger:'HIGH RISK'};
+
+  const flagged = a.checks.filter(c => c.status !== 'pass');
+
+  el.innerHTML = `
+    <div class="verdict-card ${a.verdictClass}">
+      <div class="gauge">
+        <svg viewBox="0 0 100 100" width="104" height="104">
+          <circle class="gauge-track" cx="50" cy="50" r="42"></circle>
+          <circle class="gauge-fill" cx="50" cy="50" r="42" stroke="${color}"
+            stroke-dasharray="${circumference}" stroke-dashoffset="${circumference}"></circle>
+        </svg>
+        <div class="gauge-label">
+          <div class="gauge-pct">${a.score}%</div>
+          <div class="gauge-pct-sub">RISK SCORE</div>
+        </div>
+      </div>
+      <div class="verdict-info">
+        <div class="verdict-label">${a.verdict} <span class="verdict-tag">${tagText[a.verdictClass]}</span></div>
+        <div class="verdict-desc">${descriptions[a.verdictClass]}</div>
+        ${flagged.length ? `
+        <div class="reasons">
+          <div class="reasons-title">Contributing signals</div>
+          ${flagged.map(c=>`<span class="reason-chip ${c.status}">${statusIcon(c.status)} ${c.name}</span>`).join('')}
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+  el.classList.add('show');
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      el.querySelector('.gauge-fill').style.strokeDashoffset = offset;
+    });
+  });
+}
+
+function addHistory(rawUrl, a){
+  const histWrap = document.getElementById('history');
+  const list = document.getElementById('historyList');
+  histWrap.classList.add('show');
+  const row = document.createElement('div');
+  row.className = 'hist-row';
+  row.innerHTML = `<span class="hist-badge ${a.verdictClass}">${a.verdict}</span><span class="url">${rawUrl}</span><span>${a.score}%</span>`;
+  list.prepend(row);
+  while(list.children.length > 8) list.removeChild(list.lastChild);
+}
+
+document.getElementById('urlInput').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') runScan();
+});
+</script>
+</body>
+</html>
